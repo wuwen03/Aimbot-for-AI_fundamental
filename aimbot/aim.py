@@ -6,6 +6,7 @@ import time
 # from .conf import offset,offset_lock,will_end
 from .logger import logger
 from .monitor_keyboard import Monitor_Keyboard
+from .config import *
 
 class PID:
     def __init__(self,current,target,p,i,d,int_lim,out_lim) -> None:
@@ -54,9 +55,12 @@ class Aim(threading.Thread):
         self.ry = 240
         self.id = -1
         #pid控制的参数
-        self.kp = p
-        self.ki = i
-        self.kd = d
+        self.kp = PID_P
+        self.ki = PID_I
+        self.kd = PID_D
+        # self.kp = p
+        # self.ki = i
+        # self.kd = d
         #pid控制器
         self.x_pid = PID(320,320,p,i,d,50,100)
         self.y_pid = PID(240,240,p,i,d,50,100)
@@ -138,7 +142,7 @@ class Aim(threading.Thread):
         pydirectinput.moveTo(x + dx, y + dy, relative=True)
         logger.info("off_x:{},off_y:{},cur_x:{},cur_y:{},tar_x:{},tar_y:{}".format(dx,dy,cur_x,cur_y,tar_x,tar_y))
 
-    def move_back(self):
+    def move_backup(self):
         x,y = pydirectinput.position()
         
         off_x = 320-self.cx 

@@ -1,13 +1,35 @@
+import mss.tools
 from ultralytics import YOLO
 import cv2
 import numpy as np
 import threading
 import pydirectinput
 import time
+import mss
 
 from .aim import Aim
 from .logger import logger
 from .monitor_keyboard import Monitor_Keyboard
+from .config import *
+
+class MSS(threading.Thread):
+    def __init__(self,monitor) -> None:
+        super().__init__()
+        self.monitor = monitor
+        self.frame = None
+        self.begin = False
+        self.end = False
+
+    def run(self):
+        logger.info("mss start")
+        while True:
+            with mss.mss() as m:
+                self.frame = np.array(m.grab(self.monitor))[:,:,0:3]
+            self.begin = True
+            time.sleep(0.016)
+            if self.end:
+                break
+        logger.info("mss end")
 
 
 class Model(threading.Thread):
@@ -19,19 +41,41 @@ class Model(threading.Thread):
             model_path = "yolov8n.pt"
         self.model = YOLO(model_path)
         self.aim = aim
+        self.is_obs = True
         self.cap = cv2.VideoCapture(1)
         self.mk = mk
         logger.info("Model inited")
+        #info for mss
+        # x,y = -1280,800
+        x,y = MONITOR_X,MONITOR_Y
+        w,h = 640,480
+        self.monitor = (x-w//2,y-h//2,x+w//2,y+h//2)
+        self.mss = None
+        #用于统计fps信息
         self.cnt = 0
         self.last_time = time.time()
+        self.fps = 0
 
     def run(self):
         # global will_end,status
         while self.cap.isOpened():
-            ret, frame = self.cap.read()
-            height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-            width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-            fps = self.cap.get(cv2.CAP_PROP_FPS)
+            if self.is_obs != self.mk.is_obs:
+                if self.mk.is_obs:
+                    self.mss.end = True
+                    self.mss.join()
+                    cv2.destroyAllWindows()
+                else :
+                    self.mss=MSS(self.monitor)
+                    self.mss.start()
+                    cv2.destroyAllWindows()
+                self.is_obs = self.mk.is_obs
+            if self.is_obs:
+                ret, frame = self.cap.read()
+            else:
+                frame = self.mss.frame
+            # height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            # width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+            # fps = self.cap.get(cv2.CAP_PROP_FPS)
             # result = self.model.track(
             #     frame,
             #     show=False,
@@ -46,7 +90,7 @@ class Model(threading.Thread):
             result = self.model.predict(
                 frame,
                 show = False,
-                conf = 0.4,
+                conf = 0.7,
                 classes = [0,1],
                 verbose = False
             )
@@ -56,12 +100,13 @@ class Model(threading.Thread):
             confs = result[0].boxes.conf
 
             self.cnt+=1
-            if self.cnt > 100:
+            if self.cnt > 10:
                 now = time.time()
                 fps = self.cnt / (now-self.last_time) 
                 self.cnt = 0
                 self.last_time = now
-                logger.info("FPS: {}".format(int(fps)))
+                # logger.info("FPS: {}".format(int(fps)))
+                self.fps = int(fps)
 
             if self.mk.status:
                 self.aim.update(xywh, clses, confs)
@@ -75,7 +120,8 @@ class Model(threading.Thread):
             )
             cv2.circle(annotated_frame, (320, 240), 1, (0, 255, 0), 5)
             cv2.circle(annotated_frame, (int(cx), int(cy)), 1, (255, 0, 0), 5)
-            cv2.imshow("test", annotated_frame)
+            cv2.putText(annotated_frame,"fps:{}".format(self.fps),(0,20),cv2.FONT_HERSHEY_SIMPLEX,0.5,(128,0,0),1,cv2.LINE_AA)
+            cv2.imshow("test {}".format("OBS" if self.is_obs else "MSS"), annotated_frame)
             cv2.waitKey(1)
 
             # logger.info(
@@ -97,6 +143,9 @@ class Model(threading.Thread):
             #     self.aim.update(xywh, clses, confs)
 
             if self.mk.will_end:
+                if self.mss and not self.mss.end:
+                    self.mss.end = True
+                    self.mss.join()
                 logger.info("aimbot end")
                 self.aim.end()
                 break

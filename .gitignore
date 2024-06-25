@@ -4,3 +4,4 @@ ultralytics-main.zip
 /data/*.zip
 yolov8n.pt
 __pycache__
+test.ipynb
