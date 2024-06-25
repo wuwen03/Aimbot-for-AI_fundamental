@@ -1,0 +1,6 @@
+/ultralytics-main
+torchvision-0.16.2+cu121-cp310-cp310-win_amd64.whl
+ultralytics-main.zip
+/data/*.zip
+yolov8n.pt
+__pycache__

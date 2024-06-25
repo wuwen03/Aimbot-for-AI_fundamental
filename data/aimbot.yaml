@@ -1,0 +1,6 @@
+names:
+- CT
+- crosshair
+nc: 2
+train: D:\wuwen\ECNU\大二下\AI基础\aimbot\data\train\images
+val: D:\wuwen\ECNU\大二下\AI基础\aimbot\data\val\images
